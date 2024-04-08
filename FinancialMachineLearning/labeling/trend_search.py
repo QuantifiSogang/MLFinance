@@ -12,7 +12,7 @@ def trend_labeling(molecule, close : pd.Series, span : list) :
     out = pd.DataFrame(index = molecule, columns = ['t1','tVal','bin'])
     horizons = range(*span)
     for dt0 in molecule :
-        df0 = pd.Series()
+        df0 = pd.Series(dtype = float)
         iloc0 = close.index.get_loc(dt0)
         if iloc0 + max(horizons) > close.shape[0] : continue
         for horizon in horizons :
