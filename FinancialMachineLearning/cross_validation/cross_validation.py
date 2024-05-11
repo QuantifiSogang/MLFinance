@@ -12,7 +12,7 @@ from sklearn.pipeline import Pipeline
 
 from scipy.stats import rv_continuous, kstest
 
-def ml_get_train_times(samples_info_sets: pd.Series, test_times: pd.Series) -> pd.Series:
+def get_train_times(samples_info_sets: pd.Series, test_times: pd.Series) -> pd.Series:
     train = samples_info_sets.copy(deep=True)
     for start_ix, end_ix in test_times.items():
         df0 = train[(start_ix <= train.index) & (train.index <= end_ix)].index
@@ -68,7 +68,7 @@ class SampledPipeline(Pipeline) :
             fit_params[self.steps[-1][0] + ' sample_weight'] = sample_weight
         return super(SampledPipeline, self).fit(X, y, **fit_params)
 
-def ml_cross_val_score(
+def cross_val_score(
         classifier: ClassifierMixin,
         X: pd.DataFrame,
         y: pd.Series,
