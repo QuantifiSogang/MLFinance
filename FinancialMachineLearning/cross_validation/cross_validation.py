@@ -21,6 +21,15 @@ def get_train_times(samples_info_sets: pd.Series, test_times: pd.Series) -> pd.S
         train = train.drop(df0.union(df1).union(df2))
     return train
 
+def get_embargo_times(times, pct_embargo):
+    step = int(times.shape[0] * pct_embargo)
+    if step == 0:
+        mbrg = pd.Series(times, index=times)
+    else:
+        initial = pd.Series(times[step:], index=times[:-step])
+        tail = pd.Series([times[-1]] * step, index=times[-step:])
+        mbrg = pd.concat([initial, tail])
+    return mbrg
 
 class PurgedKFold(KFold):
     def __init__(self,
@@ -55,7 +64,7 @@ class PurgedKFold(KFold):
                 index=[self.samples_info_sets.iloc[start_ix]],
                 data=[self.samples_info_sets.iloc[end_ix-1]]
             )
-            train_times = ml_get_train_times(self.samples_info_sets, test_times)
+            train_times = get_train_times(self.samples_info_sets, test_times)
 
             train_indices = []
             for train_ix in train_times.index:
