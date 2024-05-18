@@ -6,9 +6,10 @@ import pandas as pd
 import numpy as np
 
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from sklearn.ensemble.bagging import BaseBagging, BaggingClassifier, BaggingRegressor
+from sklearn.ensemble._bagging import BaseBagging
+from sklearn.ensemble import BaggingClassifier, BaggingRegressor
 from sklearn.base import ClassifierMixin, RegressorMixin
-from sklearn.ensemble.base import _partition_estimators
+from sklearn.ensemble._base import _partition_estimators
 from sklearn.utils.random import sample_without_replacement
 from sklearn.utils import indices_to_mask
 from sklearn.metrics import accuracy_score, r2_score
@@ -16,7 +17,7 @@ from sklearn.utils.validation import has_fit_parameter
 from sklearn.utils import check_random_state, check_array, check_consistent_length, check_X_y
 from sklearn.utils._joblib import Parallel, delayed
 
-from FinancialMachineLearning.sample_weights.bootstrapping import seq_bootstrap, get_ind_matrix
+from FinancialMachineLearning.sample_weights.bootstrapping import seq_bootstrap, ind_matrix
 
 MAX_INT = np.iinfo(np.int32).max
 def _generate_random_features(random_state, bootstrap, n_population, n_samples):
@@ -114,7 +115,7 @@ class SequentiallyBootstrappedBaseBagging(BaseBagging, metaclass=ABCMeta):
             verbose=verbose)
         self.samples_info_sets = samples_info_sets
         self.price_bars = price_bars
-        self.ind_mat = get_ind_matrix(samples_info_sets, price_bars)
+        self.ind_mat = ind_matrix(samples_info_sets, price_bars)
         self.timestamp_int_index_mapping = pd.Series(index=samples_info_sets.index,
                                                      data=range(self.ind_mat.shape[1]))
 
