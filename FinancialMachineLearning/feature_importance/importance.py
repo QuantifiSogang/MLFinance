@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import log_loss
 import matplotlib.pyplot as plt
-from FinancialMachineLearning.cross_validation.cross_validation import ml_cross_val_score
+from FinancialMachineLearning.cross_validation.cross_validation import cross_val_score
 
 def mean_decrease_impurity(model, feature_names):
     feature_imp_df = {i: tree.feature_importances_ for i, tree in enumerate(model.estimators_)}
@@ -60,8 +60,8 @@ def single_feature_importance(clf, X, y, cv_gen, sample_weight = None, scoring =
 
     imp = pd.DataFrame(columns=['mean', 'std'])
     for feat in feature_names:
-        feat_cross_val_scores = ml_cross_val_score(clf, X=X[[feat]], y=y, sample_weight=sample_weight,
-                                                   scoring=scoring, cv_gen=cv_gen)
+        feat_cross_val_scores = cross_val_score(clf, X=X[[feat]], y=y, sample_weight=sample_weight,
+                                                scoring=scoring, cv_gen=cv_gen)
         imp.loc[feat, 'mean'] = feat_cross_val_scores.mean()
         imp.loc[feat, 'std'] = feat_cross_val_scores.std() * feat_cross_val_scores.shape[0] ** -.5
     return imp
