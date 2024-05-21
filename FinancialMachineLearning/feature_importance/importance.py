@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.metrics import log_loss
 import matplotlib.pyplot as plt
 from FinancialMachineLearning.cross_validation.cross_validation import cross_val_score
+from tqdm import tqdm
 
 def mean_decrease_impurity(model, feature_names):
     feature_imp_df = {i: tree.feature_importances_ for i, tree in enumerate(model.estimators_)}
@@ -22,7 +23,7 @@ def mean_decrease_accuracy(model, X, y, cv_gen, sample_weight=None, scoring=log_
 
     fold_metrics_values, features_metrics_values = pd.Series(dtype = float), pd.DataFrame(columns=X.columns)
 
-    for i, (train, test) in enumerate(cv_gen.split(X=X)):
+    for i, (train, test) in tqdm(enumerate(cv_gen.split(X=X))):
         fit = model.fit(X=X.iloc[train, :], y=y.iloc[train], sample_weight = sample_weight[train])
         pred = fit.predict(X.iloc[test, :])
         if scoring == log_loss:
@@ -59,9 +60,15 @@ def single_feature_importance(clf, X, y, cv_gen, sample_weight = None, scoring =
         sample_weight = np.ones((X.shape[0],))
 
     imp = pd.DataFrame(columns=['mean', 'std'])
-    for feat in feature_names:
-        feat_cross_val_scores = cross_val_score(clf, X=X[[feat]], y=y, sample_weight=sample_weight,
-                                                scoring=scoring, cv_gen=cv_gen)
+    for feat in tqdm(feature_names) :
+        feat_cross_val_scores = cross_val_score(
+            clf,
+            X=X[[feat]],
+            y=y,
+            sample_weight=sample_weight,
+            scoring=scoring,
+            cv_gen=cv_gen
+        )
         imp.loc[feat, 'mean'] = feat_cross_val_scores.mean()
         imp.loc[feat, 'std'] = feat_cross_val_scores.std() * feat_cross_val_scores.shape[0] ** -.5
     return imp
@@ -70,6 +77,8 @@ def plot_feature_importance(importance_df, oob_score, oos_score, save_fig=False,
     plt.figure(figsize=(10, importance_df.shape[0] / 5))
     importance_df.sort_values('mean', ascending=True, inplace=True)
     importance_df['mean'].plot(kind='barh', color='b', alpha=0.25, xerr=importance_df['std'], error_kw={'ecolor': 'r'})
+    plt.grid(False)
+    plt.axvline(x = 0, color = 'lightgray', ls = '-.', lw = 1, alpha = 0.75)
     plt.title('Feature importance. OOB Score:{}; OOS score:{}'.format(round(oob_score, 4), round(oos_score, 4)))
 
     if save_fig is True:
