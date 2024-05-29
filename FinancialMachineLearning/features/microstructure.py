@@ -4,6 +4,7 @@ from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
 from abc import ABC, abstractmethod
 from collections import namedtuple
+from tqdm import tqdm
 
 def tick_rule(tick_prices : pd.Series):
     price_change = tick_prices.diff()
@@ -411,50 +412,71 @@ class microBars(microBaseBars):
         cache_data = self.cache_tuple(
             date_time, price, high_price, low_price, cum_ticks, cum_volume, cum_dollar_value)
         self.cache.append(cache_data)
-def vpin_volume_bars(file_path, threshold=28224, batch_size=20000000, verbose=True, to_csv=False, output_path=None, additional_features=None):
-    bars = microBars(file_path=file_path, metric='cum_volume',
-                     threshold=threshold, batch_size=batch_size, additional_features = additional_features)
+def vpin_volume_bars(
+        file_path,
+        threshold=28224,
+        batch_size=20000000,
+        verbose=True,
+        to_csv=False,
+        output_path=None,
+        additional_features=None
+):
+    bars = microBars(
+        file_path=file_path,
+        metric='cum_volume',
+        threshold=threshold,
+        batch_size=batch_size,
+        additional_features = additional_features
+    )
     volume_bars = bars.batch_run(verbose=verbose, to_csv=to_csv, output_path = output_path)
     return volume_bars
 
+
 def pin_likelihood(params, buy_orders, sell_orders):
     alpha, delta, mu, epsilon_b, epsilon_s = params
-    # alpha : a ratio of new information arrived at market
-    # delta : a conditional bid probability of informed trader
 
-    lambda_b = alpha + epsilon_b
-    lambda_s = (1 - alpha) + epsilon_s
-    lambda_0 = mu * (epsilon_b + epsilon_s)
+    lambda_b = alpha * mu + epsilon_b
+    lambda_s = alpha * (1 - delta) * mu + epsilon_s
+    lambda_0 = (1 - alpha) * mu
 
-    lambda_total = lambda_b + lambda_s + lambda_0
-    pi_buy = lambda_b / lambda_total
-    pi_sell = lambda_s / lambda_total
+    pi_buy = lambda_b / (lambda_b + lambda_s + lambda_0)
+    pi_sell = lambda_s / (lambda_b + lambda_s + lambda_0)
 
-    likelihood = np.sum(buy_orders * np.log(pi_buy) + sell_orders * np.log(pi_sell))
+    likelihood = (
+            np.sum(np.log(pi_buy + 1e-10) * buy_orders) +
+            np.sum(np.log(pi_sell + 1e-10) * sell_orders)
+    )
     return -likelihood
 
-def estimate_pin(buy_orders, sell_orders, alpha=0.05, delta=0.5, mu=0.5, bid=0.5, ask=0.5):
-    initial_guess = [alpha, delta, mu, bid, ask]
-    bounds = [(0, 1), (0, 1), (0, None), (0, None), (0, None)]
-    result = minimize(pin_likelihood, initial_guess, args=(buy_orders, sell_orders), bounds=bounds)
+def estimate_pin(buy_orders, sell_orders, alpha=0.05, delta=0.5, mu=0.5, epsilon_b=0.5, epsilon_s=0.5):
+    initial_guess = [alpha, delta, mu, epsilon_b, epsilon_s]
+    bounds = [(0.01, 0.99), (0.01, 0.99), (0.01, None), (0.01, None), (0.01, None)]
+
+    options = {'maxiter': 1000, 'disp': False}
+
+    result = minimize(pin_likelihood, initial_guess, args=(buy_orders, sell_orders), bounds=bounds, options=options, method='L-BFGS-B')
 
     if result.success:
         alpha, delta, mu, epsilon_b, epsilon_s = result.x
-        pin = (alpha * delta) / (alpha * delta + (1 - alpha) * (1 - delta))
+        pin = alpha * mu / (alpha * mu + epsilon_b + epsilon_s)
         return pin
     else:
-        raise ValueError("PIN estimation error")
+        return 0
 
-def probability_of_informed_trading(buy_orders, sell_orders, alpha=0.05, delta=0.5, mu=0.5, bid=0.5, ask=0.5,
-                                    window=21):
+def probability_of_informed_trading(buy_orders, sell_orders, alpha=0.05, delta=0.5, mu=0.5, epsilon_b=0.5,
+                                    epsilon_s=0.5, window=21):
+    buy_orders = buy_orders.reset_index(drop=True)
+    sell_orders = sell_orders.reset_index(drop=True)
+
     n = len(buy_orders)
     pins = []
-    for start in range(0, n - window + 1):
+    for start in tqdm(range(0, n - window + 1)):
         end = start + window
         window_buy_orders = buy_orders[start:end]
         window_sell_orders = sell_orders[start:end]
-        pin = estimate_pin(window_buy_orders, window_sell_orders, alpha, delta, mu, bid, ask)
+        pin = estimate_pin(window_buy_orders, window_sell_orders, alpha, delta, mu, epsilon_b, epsilon_s)
         pins.append(pin)
+
     pins = pd.Series(
         pins,
         index=buy_orders.index[window - 1:],
