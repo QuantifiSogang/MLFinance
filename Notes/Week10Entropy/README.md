@@ -57,7 +57,7 @@ $$U(v, v_0) = e^{-\frac{i}{\hbar} V (v-v_0)}$$
 
 $$P(p) = |\langle p | \psi_i \rangle|^2$$
 
-결과가 \( p \)일 경우, 시장 상태는 해당 가격의 고유 상태로 붕괴된다.
+결과가 $p$일 경우, 시장 상태는 해당 가격의 고유 상태로 붕괴된다.
 
 $$\text{Post-transaction state: } |p\rangle$$
 
