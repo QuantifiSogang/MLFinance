@@ -4,46 +4,41 @@ from random import gauss
 from itertools import product
 from tqdm import tqdm
 import statsmodels.api as sm
+from numba import njit, prange
 
-def synthetic_simulation(
-        coeffs : dict, # 예측, 반감기, 분산 지정
-        nIter : int = 1e5,
-        maxHP : int = 100, # 최대 보유 기간
-        rPT : np.linspace = np.linspace(0.5, 10, 20), # 익절
-        rSLm : np.linspace = np.linspace(0.5, 10, 20), # 손절
-        seed : int = 0
-) :
-    print(f'Total {len(rPT) * len(rSLm)} iterations will be held.')
-    phi, output1 = 2 ** (-1./coeffs['hl']), []
-    for comb_ in tqdm(product(rPT, rSLm)):
-        output2 = []
-        for iter_ in range(int(nIter)):
-            p, hp, count = seed, 0, 0
-            while True :
-                p = (1 - phi) * coeffs['forecast'] + phi * p + coeffs['sigma'] * gauss(0,1)
-                cP = p - seed
-                hp += 1
-                if cP > comb_[0] or cP < -comb_[1] or hp > maxHP :
-                    output2.append(cP)
-                    break
-        mean, std = np.mean(output2), np.std(output2)
-        # print(comb_[0], comb_[1], mean, std, mean / std)
-        output1.append((comb_[0], comb_[1], mean, std, mean / std))
-    return output1
+@njit
+def simulate_single_run(phi, forecast, sigma, seed, rPT, rSLm, maxHP):
+    p, hp = seed, 0
+    while True:
+        p = (1 - phi) * forecast + phi * p + sigma * np.random.normal()
+        cP = p - seed
+        hp += 1
+        if cP > rPT or cP < -rSLm or hp > maxHP:
+            return cP
 
-def get_sharpe_grid(output, profit_taking_range, stop_loss_range) :
-    sharpe = []
-    for i in range(len(output)) :
-        sharpe.append(output[i][-1])
+@njit(parallel=True)
+def synthetic_simulation(phi, forecast, sigma, nIter, maxHP, rPT, rSLm, seed):
+    output = np.zeros((len(rPT), len(rSLm), 5))
+    for i in prange(len(rPT)):
+        for j in prange(len(rSLm)):
+            results = np.zeros(nIter)
+            for k in range(nIter):
+                results[k] = simulate_single_run(phi, forecast, sigma, seed, rPT[i], rSLm[j], maxHP)
+            mean = np.mean(results)
+            std = np.std(results)
+            output[i, j] = np.array([rPT[i], rSLm[j], mean, std, mean / std])
+    return output
+
+def get_sharpe_grid(output, profit_taking_range, stop_loss_range):
+    sharpe = output[:, :, 4]
     sharpe_test = pd.DataFrame(
-        np.array(sharpe).reshape(len(profit_taking_range),len(stop_loss_range)),
-        index = profit_taking_range,
-        columns = stop_loss_range
+        sharpe,
+        index=profit_taking_range,
+        columns=stop_loss_range
     )
     sharpe_test = sharpe_test.T
-    sharpe_test.sort_index(ascending = False, inplace = True)
+    sharpe_test.sort_index(ascending=False, inplace=True)
     return sharpe_test
-
 
 def get_OU_params(close: pd.Series) -> dict:
     mean = np.log(close).mean()
