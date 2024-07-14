@@ -368,8 +368,8 @@ def deflated_sharpe_ratio(observed_sr: float, sr_estimates: list,
                           number_of_returns: int, skewness_of_returns: float = 0,
                           kurtosis_of_returns: float = 3) -> float:
     benchmark_sr = np.array(sr_estimates).std() * \
-                   ((1 - np.euler_gamma) * ss.norm.ppf(1 - 1 / len(sr_estimates)) +
-                    np.euler_gamma * ss.norm.ppf(1 - 1 / len(sr_estimates) * np.e ** (-1)))
+                   ((1 - np.euler_gamma) * ss.norm.ppf(1 - (1 / len(sr_estimates))) +
+                    np.euler_gamma * ss.norm.ppf(1 - (1 / len(sr_estimates)) * np.e ** (-1)))
 
     deflated_sr = probabilistic_sharpe_ratio(observed_sr, benchmark_sr, number_of_returns,
                                              skewness_of_returns, kurtosis_of_returns)
