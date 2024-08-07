@@ -98,7 +98,7 @@ def cross_val_score(
         ret_scores.append(score)
     return np.array(ret_scores)
 
-def grid_search_cross_validation(
+def clf_hyper_fit(
         feat,
         label : pd.Series,
         samples_info_sets : pd.Series,
@@ -115,20 +115,36 @@ def grid_search_cross_validation(
 
     inner_cv = PurgedKFold(n_splits = cv, samples_info_sets = samples_info_sets, pct_embargo = pct_embargo)
     if random_search_iterator == 0:
-        grid_search = GridSearchCV(estimator = pipe_clf, param_grid = param_grid,
-                                    scoring = scoring, cv = inner_cv, n_jobs = n_jobs, iid = False)
+        grid_search = GridSearchCV(
+            estimator = pipe_clf,
+            param_grid = param_grid,
+            scoring = scoring,
+            cv = inner_cv,
+            n_jobs = n_jobs
+        )
     else :
-        grid_search = RandomizedSearchCV(estimator = pipe_clf, param_distributions = param_grid,
-                                         scoring = scoring, cv = inner_cv, n_jobs = n_jobs,
-                                         iid = False, n_iter = random_search_iterator)
-    grid_search = grid_search.fit(feat, label, **fit_params).best_extimator_
+        grid_search = RandomizedSearchCV(
+            estimator = pipe_clf,
+            param_distributions = param_grid,
+            scoring = scoring,
+            cv = inner_cv,
+            n_jobs = n_jobs,
+            n_iter = random_search_iterator
+        )
+    grid_search = grid_search.fit(feat, label, **fit_params).best_estimator_
 
     if bagging[1] > 0 :
-        grid_search = BaggingClassifier(estimator = SampledPipeline(grid_search.steps),
-                                        n_estimators = int(bagging[0]), max_samples = float(bagging[1]),
-                                        max_features = float(bagging[2]), n_jobs = n_jobs)
-        grid_search = grid_search.fit(feat, label,
-                                      sample_weight = fit_params[grid_search.base_estimator.steps[-1][0]+' sample_weight'])
+        grid_search = BaggingClassifier(
+            estimator = SampledPipeline(grid_search.steps),
+            n_estimators = int(bagging[0]),
+            max_samples = float(bagging[1]),
+            max_features = float(bagging[2]),
+            n_jobs = n_jobs
+        )
+        grid_search = grid_search.fit(
+            feat, label,
+            sample_weight = fit_params[grid_search.base_estimator.steps[-1][0]+' sample_weight']
+        )
         grid_search = Pipeline([('bag', grid_search)])
     return grid_search
 
