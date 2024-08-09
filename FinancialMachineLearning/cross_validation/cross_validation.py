@@ -10,7 +10,7 @@ from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.ensemble import BaggingClassifier
 from sklearn.pipeline import Pipeline
 
-from scipy.stats import rv_continuous, kstest
+from scipy.stats import rv_continuous
 
 def get_train_times(samples_info_sets: pd.Series, test_times: pd.Series) -> pd.Series:
     train = samples_info_sets.copy(deep=True)
@@ -71,11 +71,11 @@ class PurgedKFold(KFold):
                 train_indices.append(self.samples_info_sets.index.get_loc(train_ix))
             yield np.array(train_indices), test_indices
 
-class SampledPipeline(Pipeline) :
+class FMLPipeline(Pipeline) :
     def fit(self, X, y, sample_weight = None, **fit_params):
         if sample_weight is not None :
             fit_params[self.steps[-1][0] + ' sample_weight'] = sample_weight
-        return super(SampledPipeline, self).fit(X, y, **fit_params)
+        return super(FMLPipeline, self).fit(X, y, **fit_params)
 
 def cross_val_score(
         classifier: ClassifierMixin,
@@ -88,13 +88,17 @@ def cross_val_score(
         sample_weight = np.ones((X.shape[0],))
     ret_scores = []
     for train, test in cv_gen.split(X=X, y=y):
-        fit = classifier.fit(X=X.iloc[train, :], y=y.iloc[train], sample_weight=sample_weight[train])
+        fit = classifier.fit(
+            X = X.iloc[train, :],
+            y = y.iloc[train],
+            sample_weight = sample_weight[train]
+        )
         if scoring == log_loss:
             prob = fit.predict_proba(X.iloc[test, :])
-            score = -1 * scoring(y.iloc[test], prob, sample_weight=sample_weight[test], labels=classifier.classes_)
+            score = -1 * scoring(y.iloc[test], prob, sample_weight = sample_weight[test], labels = classifier.classes_)
         else:
             pred = fit.predict(X.iloc[test, :])
-            score = scoring(y.iloc[test], pred, sample_weight=sample_weight[test])
+            score = scoring(y.iloc[test], pred, sample_weight = sample_weight[test])
         ret_scores.append(score)
     return np.array(ret_scores)
 
@@ -133,11 +137,12 @@ def clf_hyper_fit(
         )
     grid_search = grid_search.fit(feat, label, **fit_params).best_estimator_
 
-    if bagging[1] > 0 :
+    if bagging[1] is not None and bagging[1] > 0 :
+        max_samples = float(bagging[1]) if bagging[1] is not None else 1.0
         grid_search = BaggingClassifier(
-            estimator = SampledPipeline(grid_search.steps),
+            estimator = FMLPipeline(grid_search.steps),
             n_estimators = int(bagging[0]),
-            max_samples = float(bagging[1]),
+            max_samples = max_samples,
             max_features = float(bagging[2]),
             n_jobs = n_jobs
         )
